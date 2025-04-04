@@ -1,6 +1,7 @@
 from pathlib import Path
 import os
 from dotenv import load_dotenv
+import dj_database_url
 
 # Load environment variables
 load_dotenv()
@@ -11,7 +12,8 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'default_secret_key')
 
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '').split(',')
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -25,6 +27,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # Add this line
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     # 'django.middleware.csrf.CsrfViewMiddleware',  # Commented for development
@@ -54,10 +57,11 @@ TEMPLATES = [
 WSGI_APPLICATION = 'aidhub.wsgi.application'
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default': dj_database_url.config(
+        default=os.getenv('DATABASE_URL'),
+        conn_max_age=600,
+        conn_health_checks=True,
+    )
 }
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -76,12 +80,19 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Manila'
 USE_I18N = True
 USE_TZ = True
 
-STATIC_URL = 'static/'
-STATIC_ROOT = os.path.join(BASE_DIR, 'static')
+# Static files settings
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR.parent, 'static'),  # Changed to use parent dir
+]
+
+# Add whitenoise settings
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
@@ -111,7 +122,12 @@ LOGGING = {
 }
 
 # CSRF settings
-CSRF_TRUSTED_ORIGINS = ['http://localhost:8000', 'http://127.0.0.1:8000']
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:8000', 
+    'http://127.0.0.1:8000',
+    'https://*.onrender.com'
+]
+
 CSRF_COOKIE_SECURE = False
 
 # Admin Site Configuration
@@ -119,9 +135,34 @@ ADMIN_SITE_HEADER = "AidHub Administration"
 ADMIN_SITE_TITLE = "AidHub Admin Portal"
 ADMIN_INDEX_TITLE = "Welcome to AidHub Administration"
 
-# Add Email JS settings
-EMAILJS_CONFIG = {
-    'PUBLIC_KEY': os.getenv('EMAILJS_PUBLIC_KEY'),
-    'SERVICE_ID': os.getenv('EMAILJS_SERVICE_ID'),
-    'TEMPLATE_ID': os.getenv('EMAILJS_TEMPLATE_ID'),
-}
+# Remove EmailJS config
+# EMAILJS_CONFIG = {
+#     'PUBLIC_KEY': os.getenv('EMAILJS_PUBLIC_KEY'),
+#     'SERVICE_ID': os.getenv('EMAILJS_SERVICE_ID'), 
+#     'TEMPLATE_ID': os.getenv('EMAILJS_TEMPLATE_ID'),
+# }
+
+# Add SMTP Email settings
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
+# Media files settings
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# Enable file uploads
+FILE_UPLOAD_HANDLERS = [
+    'django.core.files.uploadhandler.MemoryFileUploadHandler',
+    'django.core.files.uploadhandler.TemporaryFileUploadHandler',
+]
+
+# Maximum upload size (5MB)
+DATA_UPLOAD_MAX_MEMORY_SIZE = 5242880
+
+# Add this setting to handle trailing slashes
+APPEND_SLASH = False

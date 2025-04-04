@@ -21,6 +21,8 @@ class Donation(models.Model):
     pickup_location = models.CharField(max_length=200)
     recipient = models.ForeignKey(Recipient, on_delete=models.CASCADE)
     donation_date = models.DateTimeField(auto_now_add=True)
+    donation_image = models.ImageField(upload_to='donation_images/', null=True, blank=True)
+    classified_type = models.CharField(max_length=100, blank=True)
 
     def __str__(self):
         return f"{self.donor_name} to {self.recipient.name}"
