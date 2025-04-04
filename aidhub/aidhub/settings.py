@@ -12,6 +12,7 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'default_secret_key')
 
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
+# Update ALLOWED_HOSTS for Railway
 ALLOWED_HOSTS = ['*'] if DEBUG else [
     '.up.railway.app',
     'localhost',
@@ -59,9 +60,10 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'aidhub.wsgi.application'
 
+# Update database config for Railway
 DATABASES = {
     'default': dj_database_url.config(
-        default='sqlite:///' + str(BASE_DIR / 'db.sqlite3'),
+        default='postgresql://postgres:postgres@localhost:5432/aidhub',
         conn_max_age=600,
         conn_health_checks=True,
         ssl_require=not DEBUG,
@@ -141,11 +143,11 @@ LOGGING['loggers']['gunicorn'] = {
     'propagate': False,
 }
 
-# CSRF settings
+# Update CSRF settings for Railway
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:8000',
-    'http://127.0.0.1:8000',
-    'https://*.up.railway.app',
+    'http://127.0.0.1:8000', 
+    'https://*.up.railway.app'
 ]
 
 CSRF_COOKIE_SECURE = False
