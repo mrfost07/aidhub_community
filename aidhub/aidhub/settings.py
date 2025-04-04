@@ -143,6 +143,7 @@ CSRF_TRUSTED_ORIGINS = [
     'http://localhost:8000', 
     'http://127.0.0.1:8000',
     'https://*.onrender.com',
+    'https://*.railway.app'  # Add Railway domain
 ]
 
 CSRF_COOKIE_SECURE = False
@@ -182,4 +183,4 @@ FILE_UPLOAD_HANDLERS = [
 DATA_UPLOAD_MAX_MEMORY_SIZE = 5242880
 
 # Add this setting to handle trailing slashes
-APPEND_SLASH = False
+APPEND_SLASH = True
