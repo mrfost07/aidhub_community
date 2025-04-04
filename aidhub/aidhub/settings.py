@@ -10,10 +10,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.getenv('SECRET_KEY', 'default_secret_key')
 
-DEBUG = os.getenv('DEBUG', 'True') == 'True'
+DEBUG = False  # Set to False for production
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'aidhub-community.onrender.com,.onrender.com,localhost,127.0.0.1,aidhub.pythonanywhere.com').split(',')
-
+ALLOWED_HOSTS = ['*']  # Allow all hosts
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -27,10 +26,10 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',  # Add this line
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    # 'django.middleware.csrf.CsrfViewMiddleware',  # Commented for development
+    'django.middleware.csrf.CsrfViewMiddleware',  # Enable CSRF protection
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -58,13 +57,14 @@ WSGI_APPLICATION = 'aidhub.wsgi.application'
 
 DATABASES = {
     'default': dj_database_url.config(
-        default=os.getenv('DATABASE_URL'),
+        default='sqlite:///' + str(BASE_DIR / 'db.sqlite3'),
         conn_max_age=600,
         conn_health_checks=True,
     )
 }
 
-if DATABASES['default']:
+# Only add PostgreSQL specific options if using PostgreSQL
+if os.getenv('DATABASE_URL', '').startswith('postgres'):
     DATABASES['default'].update({
         'ENGINE': 'django.db.backends.postgresql',
         'OPTIONS': {
@@ -138,10 +138,10 @@ LOGGING['loggers']['gunicorn'] = {
 
 # CSRF settings
 CSRF_TRUSTED_ORIGINS = [
-    'http://localhost:8000', 
+    'http://localhost:8000',
     'http://127.0.0.1:8000',
-    'https://*.onrender.com',
-    'https://*.pythonanywhere.com',
+    'http://*',  # Allow HTTP
+    'https://*'  # Allow HTTPS
 ]
 
 CSRF_COOKIE_SECURE = False
@@ -182,3 +182,28 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 5242880
 
 # Add this setting to handle trailing slashes
 APPEND_SLASH = False
+
+# Security settings for external access
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SECURE_SSL_REDIRECT = False  # Set to True if using HTTPS
+SESSION_COOKIE_SECURE = False  # Set to True if using HTTPS
+CSRF_COOKIE_SECURE = False  # Set to True if using HTTPS
+
+# Update allowed hosts - add your domain/IP
+ALLOWED_HOSTS = ['*']  # Be more restrictive in production
+
+# Update CSRF settings for external access
+CSRF_TRUSTED_ORIGINS = [
+    'http://*',  # Allow all HTTP (not recommended for production)
+    'https://*', # Allow all HTTPS (not recommended for production) 
+]
+
+# Rate limiting settings
+MIDDLEWARE += [
+    'django.middleware.common.CommonMiddleware',
+]
+
+# Security middleware settings
+MIDDLEWARE += [
+    'django.middleware.security.SecurityMiddleware',
+]
