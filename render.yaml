@@ -29,7 +29,11 @@ services:
       - key: PORT  # Add PORT explicitly
         value: 8000
       - key: MALLOC_ARENA_MAX  # Add memory optimization
-        value: 2
+        value: 1  # Reduce from 2 to 1
+      - key: PYTHONMALLOC
+        value: malloc
+      - key: PYTORCH_CUDA_ALLOC_CONF
+        value: max_split_size_mb:32
     
     plan: free
     resources:
