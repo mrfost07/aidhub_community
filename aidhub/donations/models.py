@@ -18,6 +18,8 @@ class Donation(models.Model):
     donor_name = models.CharField(max_length=200)
     donor_contact = models.CharField(max_length=200)
     donation_type = models.CharField(max_length=100)
+    suggested_type = models.CharField(max_length=100, blank=True)  # For ML suggestions
+    text_pattern_match = models.CharField(max_length=100, blank=True)  # For text pattern matching
     pickup_location = models.CharField(max_length=200)
     recipient = models.ForeignKey(Recipient, on_delete=models.CASCADE)
     donation_date = models.DateTimeField(auto_now_add=True)

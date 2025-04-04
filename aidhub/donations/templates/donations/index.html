@@ -165,6 +165,122 @@
     (function() {
         emailjs.init(emailjsConfig.publicKey);
     })();
+
+    // Add this in your existing <script> section
+    function detectDonationType(text) {
+        if (!text.trim()) {
+            document.getElementById('detected-type').textContent = '';
+            document.getElementById('donation-type').value = '';
+            return;
+        }
+
+        fetch('/api/detect_donation_type/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ text: text })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.matches && data.matches.length > 0) {
+                // Set the first matched type as the donation type
+                document.getElementById('donation-type').value = data.matches[0];
+                document.getElementById('detected-type').textContent = 
+                    `Detected donation type: ${data.matches[0]}`;
+            } else {
+                document.getElementById('donation-type').value = 'other';
+                document.getElementById('detected-type').textContent = 
+                    'Could not detect specific donation type';
+            }
+        })
+        .catch(error => {
+            console.error('Error detecting donation type:', error);
+            document.getElementById('donation-type').value = 'other';
+        });
+    }
+
+    function previewImage(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        // Show selected filename
+        document.getElementById('selected-file').textContent = file.name;
+
+        // Preview image
+        const preview = document.getElementById('preview-img');
+        const reader = new FileReader();
+        
+        reader.onload = function(e) {
+            preview.src = e.target.result;
+            document.getElementById('image-preview').classList.remove('hidden');
+            
+            // Classify image
+            classifyDonationImage(file);
+        }
+        reader.readAsDataURL(file);
+    }
+
+    function classifyDonationImage(file) {
+        const formData = new FormData();
+        formData.append('image', file);
+
+        fetch('/api/classify_image/', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            const result = document.getElementById('classification-result');
+            const descriptionInput = document.getElementById('donation-description');
+            const typeInput = document.getElementById('donation-type');
+            const detectedType = document.getElementById('detected-type');
+
+            if (data.success) {
+                // Update classification result
+                result.textContent = `Classified as: ${data.category} (${Math.round(data.confidence * 100)}% confidence)`;
+                
+                // Update description textarea
+                descriptionInput.value = data.category;
+                
+                // Update hidden donation type
+                typeInput.value = data.category;
+                
+                // Update detected type message
+                detectedType.textContent = `Detected donation type: ${data.category}`;
+
+                // Force UI update by triggering input event
+                const inputEvent = new Event('input', {
+                    bubbles: true,
+                    cancelable: true,
+                });
+                descriptionInput.dispatchEvent(inputEvent);
+            } else {
+                result.textContent = 'Could not classify image';
+                detectedType.textContent = '';
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            document.getElementById('classification-result').textContent = 'Error analyzing image';
+            showNotification('Error classifying image', 'error');
+        });
+    }
+
+    // Update the form submission to include the description
+    document.getElementById('find-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const description = document.getElementById('donation-description').value.trim();
+        const donorLocation = document.getElementById('donor-location').value;
+        
+        if (!description) {
+            showNotification('Please describe what you want to donate', 'error');
+            return;
+        }
+        
+        const donationType = document.getElementById('donation-type').value || description.toLowerCase();
+        fetchRecipients(donationType, donorLocation);
+    });
 </script>
 </head>
 <body class="bg-gray-100 min-h-screen relative">
@@ -297,21 +413,42 @@
                 <div id="donate-step-1" class="modal-step">
                     <form id="find-form" class="grid grid-cols-1 gap-4">
                         <input type="hidden" id="donation-type" value="">
+                        
+                        <!-- Donation Description -->
                         <div>
-                            <label class="block text-gray-700 mb-1">Upload Donation Image</label>
+                            <label class="block text-gray-700 mb-1 font-medium">What would you like to donate?*</label>
+                            <textarea 
+                                id="donation-description" 
+                                class="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                                placeholder="Describe your donation (e.g., canned food, winter clothes, school books)"
+                                rows="3"
+                                oninput="detectDonationType(this.value)"
+                                required></textarea>
+                            <p id="detected-type" class="mt-1 text-sm text-blue-600"></p>
+                        </div>
+
+                        <!-- Image Upload -->
+                        <div class="mt-4">
+                            <label class="block text-gray-700 mb-1">
+                                <span class="font-medium">Upload Image</span>
+                                <span class="text-sm text-gray-500 ml-1">(Optional - AI will suggest donation type)</span>
+                            </label>
                             <div class="flex items-center space-x-2">
                                 <input type="file" id="donation-image" accept="image/*" class="hidden" onchange="previewImage(event)">
-                                <button type="button" onclick="document.getElementById('donation-image').click()" 
-                                        class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                                <button type="button" 
+                                        onclick="document.getElementById('donation-image').click()" 
+                                        class="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 border border-gray-300">
                                     Choose Image
                                 </button>
                                 <span id="selected-file" class="text-sm text-gray-600"></span>
                             </div>
                             <div id="image-preview" class="mt-2 hidden">
                                 <img id="preview-img" class="max-w-full h-48 object-contain rounded border">
-                                <p id="classification-result" class="mt-2 text-sm font-medium"></p>
+                                <p id="classification-result" class="mt-2 text-sm italic text-gray-600"></p>
                             </div>
                         </div>
+
+                        <!-- Your Location -->
                         <div>
                             <label class="block text-gray-700 mb-1">Your Location</label>
                             <input type="text" id="donor-location" class="w-full px-3 py-2 border rounded" placeholder="City, State or Address" required>
@@ -727,7 +864,7 @@
 
         function getIconForType(type) {
             const icons = {
-                'clothing': '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>',
+                'clothing': '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 012 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>',
                 'food': '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h18v18H3z M16 8a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>',
                 'medicine': '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>',
                 // Add more icons for other categories
@@ -840,6 +977,12 @@
 
         // Submit donation
         function submitDonation(donorName, donorContact, donationType, donorLocation, pickupLocation, recipientId) {
+            // Validate required fields
+            if (!donorName || !donorContact || !donationType || !pickupLocation || !recipientId) {
+                showNotification('Please fill in all required fields', 'error');
+                return;
+            }
+
             const submitButton = document.querySelector('#donation-form button[type="submit"]');
             const originalText = submitButton.textContent;
             submitButton.disabled = true;
@@ -865,8 +1008,9 @@
             })
             .then(response => response.json().then(data => ({status: response.status, body: data})))
             .then(({status, body}) => {
-                console.log('Server response:', status, body);
-                
+                submitButton.disabled = false;
+                submitButton.textContent = originalText;
+
                 if (status !== 200) {
                     throw new Error(body.error || `Server error: ${status}`);
                 }
@@ -884,12 +1028,10 @@
                 fetchSummaryStats();
             })
             .catch(error => {
-                console.error('Donation error:', error);
-                showNotification(error.message || 'Error processing donation. Please try again.', 'error');
-            })
-            .finally(() => {
+                console.error('Error submitting donation:', error);
                 submitButton.disabled = false;
-                submitButton.innerHTML = originalText;
+                submitButton.textContent = originalText;
+                showNotification(error.message || 'Error processing donation', 'error');
             });
         }
 
@@ -1115,15 +1257,37 @@
             .then(response => response.json())
             .then(data => {
                 const result = document.getElementById('classification-result');
+                const descriptionInput = document.getElementById('donation-description');
+                const typeInput = document.getElementById('donation-type');
+                const detectedType = document.getElementById('detected-type');
+
                 if (data.success) {
+                    // Update classification result
                     result.textContent = `Classified as: ${data.category} (${Math.round(data.confidence * 100)}% confidence)`;
-                    document.getElementById('donation-type').value = data.category;
+                    
+                    // Update description textarea
+                    descriptionInput.value = data.category;
+                    
+                    // Update hidden donation type
+                    typeInput.value = data.category;
+                    
+                    // Update detected type message
+                    detectedType.textContent = `Detected donation type: ${data.category}`;
+
+                    // Force UI update by triggering input event
+                    const inputEvent = new Event('input', {
+                        bubbles: true,
+                        cancelable: true,
+                    });
+                    descriptionInput.dispatchEvent(inputEvent);
                 } else {
-                    result.textContent = 'Could not classify image. Please select donation type manually.';
+                    result.textContent = 'Could not classify image';
+                    detectedType.textContent = '';
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
+                document.getElementById('classification-result').textContent = 'Error analyzing image';
                 showNotification('Error classifying image', 'error');
             });
         }

@@ -4,6 +4,7 @@ from .views import (
     DonationView, AddRecipientView, HistoryView, SummaryStatsView,
     ClassifyImageView
 )
+from . import views
 
 urlpatterns = [
     path('', IndexView.as_view(), name='index'),
@@ -22,4 +23,5 @@ urlpatterns = [
     path('api/summary_stats/', SummaryStatsView.as_view(), name='summary_stats-slash'),
     path('api/classify_image', ClassifyImageView.as_view(), name='classify_image'),
     path('api/classify_image/', ClassifyImageView.as_view(), name='classify_image-slash'),
+    path('api/detect_donation_type/', views.detect_donation_type, name='detect_donation_type'),
 ]

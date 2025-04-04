@@ -10,6 +10,9 @@ from geopy.distance import geodesic
 import json
 import logging
 from .ml.image_classifier import classifier  # Add this import
+from .utils.text_matcher import match_donation_text  # Add this import
+from django.views.decorators.csrf import csrf_exempt  # Add this import
+from django.db import transaction  # Add this import
 
 logger = logging.getLogger('aidhub')
 
@@ -100,58 +103,23 @@ class RecipientListView(View):
 class DonationView(View):
     def post(self, request):
         try:
-            # Log request headers and body
-            logger.info(f"Received donation request. Content-Type: {request.headers.get('Content-Type')}")
-            logger.info(f"Request body: {request.body.decode()}")
+            data = json.loads(request.body)
             
-            # Parse JSON data
-            try:
-                data = json.loads(request.body)
-            except json.JSONDecodeError as e:
-                logger.error(f"JSON decode error: {e}")
-                return JsonResponse({
-                    "success": False,
-                    "error": "Invalid JSON data provided"
-                }, status=400)
-
             # Validate required fields
-            required = ['donor_name', 'donor_contact', 'donation_type', 
-                       'donor_location', 'pickup_location', 'recipient_id']
-            
-            missing_fields = [field for field in required if not data.get(field)]
-            if missing_fields:
-                error_msg = f"Missing required fields: {', '.join(missing_fields)}"
-                logger.error(error_msg)
-                return JsonResponse({
-                    "success": False,
-                    "error": error_msg
-                }, status=400)
-                
-            try:
-                recipient_id = int(data['recipient_id'])
-            except (ValueError, TypeError) as e:
-                logger.error(f"Invalid recipient ID: {data.get('recipient_id')} - {e}")
-                return JsonResponse({
-                    "success": False,
-                    "error": "Invalid recipient ID format"
-                }, status=400)
-            
-            try:
-                recipient = Recipient.objects.get(id=recipient_id)
-                logger.info(f"Found recipient: {recipient.id} - {recipient.name}")
-            except Recipient.DoesNotExist:
-                error_msg = f"Recipient not found with ID: {recipient_id}"
-                logger.error(error_msg)
-                return JsonResponse({
-                    "success": False,
-                    "error": error_msg
-                }, status=404)
+            required_fields = ['donor_name', 'donor_contact', 'donation_type', 'pickup_location', 'recipient_id']
+            for field in required_fields:
+                if not data.get(field):
+                    return JsonResponse({
+                        "success": False,
+                        "error": f"Missing required field: {field}"
+                    }, status=400)
 
-            # Use transaction to ensure data consistency
-            from django.db import transaction
             try:
                 with transaction.atomic():
-                    # Create the records
+                    # Get recipient first
+                    recipient = Recipient.objects.get(id=data['recipient_id'])
+                    
+                    # Create DonatedRecipient record
                     donated = DonatedRecipient.objects.create(
                         name=recipient.name,
                         location=recipient.location,
@@ -165,17 +133,19 @@ class DonationView(View):
                         pickup_location=data['pickup_location']
                     )
                     
+                    # Create Donation record with new fields
                     donation = Donation.objects.create(
                         donor_name=data['donor_name'],
                         donor_contact=data['donor_contact'],
                         donation_type=data['donation_type'].lower(),
                         pickup_location=data['pickup_location'],
-                        recipient=recipient
+                        recipient=recipient,
+                        suggested_type=data.get('suggested_type', ''),
+                        text_pattern_match=data.get('text_pattern_match', '')
                     )
                     
                     # Delete recipient only after successful creation
                     recipient.delete()
-                    logger.info(f"Donation successful: {donation.id}")
 
                     return JsonResponse({
                         "success": True,
@@ -187,13 +157,24 @@ class DonationView(View):
                         }
                     })
                     
+            except ObjectDoesNotExist:
+                return JsonResponse({
+                    "success": False,
+                    "error": "Recipient not found"
+                }, status=404)
+                
             except Exception as e:
                 logger.error(f"Database transaction error: {str(e)}")
                 return JsonResponse({
                     "success": False,
-                    "error": "Database error occurred while processing donation"
+                    "error": f"Database error occurred while processing donation: {str(e)}"
                 }, status=500)
 
+        except json.JSONDecodeError:
+            return JsonResponse({
+                "success": False,
+                "error": "Invalid JSON data"
+            }, status=400)
         except Exception as e:
             logger.error(f"Unexpected error in donation processing: {str(e)}")
             return JsonResponse({
@@ -344,3 +325,15 @@ class ClassifyImageView(View):  # Add this new view class
                 'success': False,
                 'message': str(e)
             }, status=500)
+
+@csrf_exempt
+def detect_donation_type(request):  # Add this new function
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        text = data.get('text', '')
+        matches = match_donation_text(text)
+        return JsonResponse({
+            'success': True,
+            'matches': matches
+        })
+    return JsonResponse({'success': False})
