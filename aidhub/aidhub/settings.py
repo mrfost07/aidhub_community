@@ -14,14 +14,6 @@ DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'aidhub-community.onrender.com,.onrender.com,localhost,127.0.0.1,aidhub.pythonanywhere.com').split(',')
 
-# Add your PythonAnywhere domain to ALLOWED_HOSTS
-ALLOWED_HOSTS = [
-    'aidhub-community.onrender.com',
-    '.onrender.com',
-    'localhost',
-    '127.0.0.1',
-    'aidhub.pythonanywhere.com'  # Replace 'yourusername' with your PythonAnywhere username
-]
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -102,9 +94,9 @@ USE_TZ = True
 
 # Static files settings
 STATIC_URL = '/static/'
-STATIC_ROOT = os.path.join(BASE_DIR.parent, 'static')
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_DIRS = [
-    os.path.join(BASE_DIR.parent, 'styles'),
+    os.path.join(BASE_DIR.parent, 'static'),  # Changed to use parent dir
 ]
 
 # Add whitenoise settings
@@ -177,7 +169,7 @@ DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 # Media files settings
 MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR.parent, 'media')
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # Enable file uploads
 FILE_UPLOAD_HANDLERS = [
