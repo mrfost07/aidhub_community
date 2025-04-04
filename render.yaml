@@ -45,11 +45,17 @@ services:
       cpu: 1.0      # Increased CPU allocation
 
     autoDeploy: true
+    branch: main  # Add explicit branch
     buildFilter:
       paths:
       - aidhub/**
       - requirements.txt
       - static/**
+      - build.sh
+      - render.yaml
+      - gunicorn_config.py
+    healthCheckPath: /
+    pullRequestPreviewsEnabled: true  # Enable PR previews
 
 databases:
   - name: aidhub_db
