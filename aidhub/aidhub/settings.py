@@ -12,12 +12,8 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'default_secret_key')
 
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
-# Update ALLOWED_HOSTS for Railway
-ALLOWED_HOSTS = ['*'] if DEBUG else [
-    '.up.railway.app',
-    'localhost',
-    '127.0.0.1'
-]
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'aidhub-community.onrender.com,.onrender.com,localhost,127.0.0.1').split(',')
+
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -60,24 +56,23 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'aidhub.wsgi.application'
 
-# Update database config for Railway
+# Database configuration
 DATABASES = {
-    'default': dj_database_url.config(
-        default='postgresql://postgres:postgres@localhost:5432/aidhub',
+    'default': dj_database_url.parse(
+        os.getenv(
+            'DATABASE_URL',
+            'sqlite:///' + str(BASE_DIR / 'db.sqlite3')
+        ),
         conn_max_age=600,
         conn_health_checks=True,
-        ssl_require=not DEBUG,
     )
 }
 
-# Only add PostgreSQL specific options if using PostgreSQL
-if os.getenv('DATABASE_URL', '').startswith('postgres'):
-    DATABASES['default'].update({
-        'ENGINE': 'django.db.backends.postgresql',
-        'OPTIONS': {
-            'sslmode': 'require',
-        }
-    })
+# Ensure SSL is used in production
+if not DEBUG and DATABASES['default']['ENGINE'] == 'django.db.backends.postgresql':
+    DATABASES['default']['OPTIONS'] = {
+        'sslmode': 'require'
+    }
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -143,11 +138,11 @@ LOGGING['loggers']['gunicorn'] = {
     'propagate': False,
 }
 
-# Update CSRF settings for Railway
+# CSRF settings
 CSRF_TRUSTED_ORIGINS = [
-    'http://localhost:8000',
-    'http://127.0.0.1:8000', 
-    'https://*.up.railway.app'
+    'http://localhost:8000', 
+    'http://127.0.0.1:8000',
+    'https://*.onrender.com',
 ]
 
 CSRF_COOKIE_SECURE = False
