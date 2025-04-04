@@ -12,7 +12,7 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'default_secret_key')
 
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'aidhub-community.onrender.com,.onrender.com,localhost,127.0.0.1').split(',')
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '*,.railway.app,aidhub-community-production.up.railway.app,localhost,127.0.0.1').split(',')
 
 
 INSTALLED_APPS = [
@@ -98,7 +98,7 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_DIRS = [
-    os.path.join(BASE_DIR.parent, 'static'),  # Changed to use parent dir
+    os.path.join(BASE_DIR, 'static'),  # Changed from parent dir to project dir
 ]
 
 # Add whitenoise settings
