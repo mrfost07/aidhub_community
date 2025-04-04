@@ -92,7 +92,7 @@ class DonationImageClassifier:
                 'toys': list(range(850, 870)),
                 'furniture': list(range(750, 780)),
                 'hygiene': list(range(630, 650)),
-                'school_supplies': list(range(760, 770))
+                'supplies': list(range(760, 770))
             }
             
             # Check which category the class index belongs to
