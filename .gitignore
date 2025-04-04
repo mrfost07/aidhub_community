@@ -1,0 +1,45 @@
+# Python bytecode files and caches
+*.py[cod]
+__pycache__/
+*.pyo
+*.pyd
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environment directories
+env/
+venv/
+ENV/
+VENV/
+
+# dotenv files (environment variables)
+.env
+.env.*
+
+# Django stuff:
+*.log
+local_settings.py
+db.sqlite3
+
+# Static and media (if you keep them here)
+staticfiles/
+media/
+
+# OS generated files
+.DS_Store
+Thumbs.db

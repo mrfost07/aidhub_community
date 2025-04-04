@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AidHub - Connect Donations with Recipients</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <!-- Add Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin=""/>
+    <style>
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 50;
+            overflow-y: auto; /* Add scroll for whole modal */
+        }
+        .modal-content {
+            background-color: white;
+            margin: 5% auto; /* Reduce top margin */
+            width: 90%;
+            max-width: 600px;
+            border-radius: 8px;
+            overflow: visible; /* Change from hidden to visible */
+            animation: modalFade 0.3s;
+            max-height: 90vh; /* Set maximum height */
+            display: flex;
+            flex-direction: column;
+        }
+        .modal-content > div {
+            flex: 1;
+            overflow-y: auto; /* Add scroll for content */
+            padding: 1.5rem;
+        }
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        #map-container {
+            height: 300px; /* Reduce map height */
+            margin-bottom: 15px;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .marker-popup {
+            font-size: 11px;
+            max-width: 150px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .marker-popup h3 {
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 3px;
+            position: sticky;
+            top: 0;
+            background: white;
+            padding: 2px 0;
+        }
+        .leaflet-popup-content {
+            margin: 8px;
+            max-height: 250px;
+            overflow-y: auto;
+        }
+        .leaflet-popup {
+            max-height: 300px;
+        }
+        .urgency-badge {
+            display: inline-block;
+            padding: 1px 4px;
+            border-radius: 8px;
+            color: white;
+            font-size: 10px;
+            margin-top: 1px;
+        }
+        #recipients-list {
+            max-height: 200px; /* Reduce recipient list height */
+            overflow-y: auto;
+        }
+    </style>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+    <script>
+    // Get EmailJS config from Django template
+    const emailjsConfig = {
+        publicKey: '{{ settings.EMAILJS_CONFIG.PUBLIC_KEY|escapejs }}',
+        serviceId: '{{ settings.EMAILJS_CONFIG.SERVICE_ID|escapejs }}',
+        templateId: '{{ settings.EMAILJS_CONFIG.TEMPLATE_ID|escapejs }}'
+    };
+    
+    (function() {
+        emailjs.init(emailjsConfig.publicKey);
+    })();
+</script>
+</head>
+<body class="bg-gray-100 min-h-screen relative">
+    <!-- Updated nav with higher z-index -->
+    <nav class="bg-blue-600 text-white shadow-lg fixed w-full top-0 z-50">
+        <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+            <h1 class="text-3xl font-bold">AidHub</h1>
+
+        </div>
+    </nav>
+    <!-- Hero Section -->
+    <header class="text-white pt-24 pb-20 relative" style="background: url('https://lh3.googleusercontent.com/pw/AP1GczP8keQxGbIfT0qp5YL6vAxeUAMNILVb4jIXlopj2VW3uGvq9tkwrSpQirmNipW2Kw6khm5g_UCGTKqM229NXyB8d0QEih-19crsfx6W9wyM4jZwFYl_Ruc-yyMWQAL4LTMP3IKolpnz90CGWcPw0GlnhA=w1912-h817-s-no-gm?authuser=0') no-repeat center/cover; height: 700px;">
+        <!-- Add a dark overlay -->
+        <div class="absolute inset-0 bg-black bg-opacity-50"></div>
+        
+        <!-- Content with enhanced text shadows -->
+        <div class="container mx-auto px-4 text-center relative z-10">
+            <h1 class="text-4xl md:text-5xl font-bold mb-6" style="text-shadow: 2px 2px 4px rgba(0,0,0,0.5);">Connect Donations Directly with Those in Need</h1>
+            <p class="text-xl mb-8 max-w-2xl mx-auto" style="text-shadow: 1px 1px 3px rgba(0,0,0,0.5);">AidHub brings donors and recipients together without middlemen, making charitable giving more efficient and personal.</p>
+            <div class="flex flex-wrap justify-center gap-4">
+                <button onclick="showModal('modal-donate')" class="px-8 py-3 rounded-full bg-white text-blue-600 hover:bg-blue-50 font-medium text-lg shadow-lg hover:shadow-xl transition-shadow">Donate Now</button>
+                <button onclick="showModal('modal-request')" class="px-8 py-3 rounded-full bg-transparent hover:bg-blue-500 border-2 border-white font-medium text-lg shadow-lg hover:shadow-xl transition-shadow">Request Aid</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Trending Needs Section -->
+    <section class="py-16 bg-white">
+        <div class="container mx-auto px-4">
+            <h2 class="text-3xl font-bold text-center mb-10">Trending Donation Needs</h2>
+            <div id="trending-container" class="flex flex-wrap">
+                <div class="loader"></div> Loading trending needs...
+            </div>
+        </div>
+    </section>
+
+    <!-- How It Works Section -->
+    <section class="py-16 bg-gray-100">
+        <div class="container mx-auto px-4">
+            <h2 class="text-3xl font-bold text-center mb-4">How It Works</h2>
+            <p class="text-gray-600 text-center mb-10 max-w-2xl mx-auto">Our platform uses advanced matching algorithms to connect donors directly with those in need, making the donation process simple and transparent.</p>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div class="bg-white p-8 rounded-lg shadow-lg text-center transform transition-transform hover:scale-105">
+                    <div class="text-blue-600 text-5xl mb-4">
+                        <!-- Form/Input Icon -->
+                        <svg class="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-3">1. Submit Details</h3>
+                    <p class="text-gray-600">Share what you'd like to donate or what you need. Our AI system analyzes requests to prioritize urgent needs and find the best matches.</p>
+                </div>
+                <div class="bg-white p-8 rounded-lg shadow-lg text-center transform transition-transform hover:scale-105">
+                    <div class="text-blue-600 text-5xl mb-4">
+                        <!-- Connection Icon -->
+                        <svg class="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-3">2. Get Matched</h3>
+                    <p class="text-gray-600">Our smart matching system connects donors with recipients based on location, urgency, and specific needs, ensuring efficient distribution.</p>
+                </div>
+                <div class="bg-white p-8 rounded-lg shadow-lg text-center transform transition-transform hover:scale-105">
+                    <div class="text-blue-600 text-5xl mb-4">
+                        <!-- Handshake Icon -->
+                        <svg class="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z M9 12l2 2 4-4"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-3">3. Complete Exchange</h3>
+                    <p class="text-gray-600">Connect directly with your match to arrange pickup or delivery. Track your impact and join our community of givers making a difference.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Stats Section -->
+    <section class="py-16 bg-blue-600 text-white">
+        <div class="container mx-auto px-4">
+            <h2 class="text-3xl font-bold text-center mb-10">Our Impact</h2>
+            <div id="stats-summary" class="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
+                <div>
+                    <div class="text-4xl font-bold mb-2" id="total-donations">0</div>
+                    <p>Total Donations</p>
+                </div>
+                <div>
+                    <div class="text-4xl font-bold mb-2" id="unique-donors">0</div>
+                    <p>Unique Donors</p>
+                </div>
+                <div>
+                    <div class="text-4xl font-bold mb-2" id="communities-served">0</div>
+                    <p>Communities Served</p>
+                </div>
+            </div>
+            <div class="text-center mt-8">
+                <button onclick="showModal('modal-history')" class="px-6 py-2 rounded-full bg-white text-blue-600 hover:bg-blue-50 font-medium">View Full History</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-gray-800 text-white py-8">
+        <div class="container mx-auto px-4 text-center">
+            <p>© 2025 AidHub - Connecting donors and recipients directly.</p>
+            <div class="mt-4">
+                <a href="#" class="mx-2 hover:text-blue-300">About</a>
+                <a href="#" class="mx-2 hover:text-blue-300">Contact</a>
+                <a href="#" class="mx-2 hover:text-blue-300">Privacy Policy</a>
+                <a href="#" class="mx-2 hover:text-blue-300">Terms of Service</a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Donate Modal -->
+    <div id="modal-donate" class="modal">
+        <div class="modal-content">
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold">Make a Donation</h2>
+                    <button onclick="closeModal('modal-donate')" class="text-gray-500 hover:text-gray-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                
+                <div id="donate-step-1" class="modal-step">
+                    <form id="find-form" class="grid grid-cols-1 gap-4">
+                        <div>
+                            <label class="block text-gray-700 mb-1">Donation Type</label>
+                            <input type="text" id="donation-type" class="w-full px-3 py-2 border rounded" placeholder="e.g., food, clothing, medicine" required>
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 mb-1">Your Location</label>
+                            <input type="text" id="donor-location" class="w-full px-3 py-2 border rounded" placeholder="City, State or Address" required>
+                        </div>
+                        <div>
+                            <button type="submit" class="w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Find Recipients</button>
+                        </div>
+                    </form>
+                </div>
+                
+                <div id="donate-step-2" class="modal-step hidden">
+                    <h3 class="text-lg font-medium mb-3">Matching Recipients</h3>
+                    <!-- Add map container -->
+                    <div id="map-container"></div>
+                    <div id="recipients-list" class="space-y-4 max-h-60 overflow-y-auto"></div>
+                    <button onclick="showDonateStep(1)" class="mt-4 text-blue-600 hover:text-blue-800">← Back to search</button>
+                </div>
+                
+                <div id="donate-step-3" class="modal-step hidden">
+                    <h3 class="text-lg font-medium mb-3">Complete Donation</h3>
+                    <form id="donation-form" class="grid grid-cols-1 gap-4">
+                        <input type="hidden" id="recipient-id">
+                        <div>
+                            <label class="block text-gray-700 mb-1">Your Name</label>
+                            <input type="text" id="donor-name" class="w-full px-3 py-2 border rounded" required>
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 mb-1">Your Contact</label>
+                            <input type="text" id="donor-contact" class="w-full px-3 py-2 border rounded" placeholder="Phone or Email" required>
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 mb-1">Pickup Location</label>
+                            <input type="text" id="pickup-location" class="w-full px-3 py-2 border rounded" placeholder="Where can the donation be picked up?" required>
+                        </div>
+                        <div>
+                            <button type="submit" class="w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Confirm Donation</button>
+                        </div>
+                    </form>
+                    <button onclick="showDonateStep(2)" class="mt-4 text-blue-600 hover:text-blue-800">← Back to recipients</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Request Aid Modal -->
+    <div id="modal-request" class="modal">
+        <div class="modal-content">
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold">Request Aid</h2>
+                    <button onclick="closeModal('modal-request')" class="text-gray-500 hover:text-gray-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                <form id="request-form" class="grid grid-cols-1 gap-4">
+                    <div>
+                        <label class="block text-gray-700 mb-1">Organization/Name</label>
+                        <input type="text" id="recipient-name" class="w-full px-3 py-2 border rounded" required>
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 mb-1">Location</label>
+                        <input type="text" id="recipient-location" class="w-full px-3 py-2 border rounded" placeholder="City, State or Address" required>
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 mb-1">Need Type</label>
+                        <input type="text" id="need-type" class="w-full px-3 py-2 border rounded" placeholder="e.g., food, clothing, medicine" required>
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 mb-1">Contact Information</label>
+                        <input type="text" id="recipient-contact" class="w-full px-3 py-2 border rounded" placeholder="Phone or Email" required>
+                    </div>
+                    <div>
+                        <button type="submit" class="w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Submit Request</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- History Modal -->
+    <div id="modal-history" class="modal">
+        <div class="modal-content">
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold">Donation History</h2>
+                    <button onclick="closeModal('modal-history')" class="text-gray-500 hover:text-gray-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="mb-6">
+                    <h3 class="text-lg font-medium mb-3">Donation Statistics</h3>
+                    <div id="stats-container" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="loader"></div> Loading statistics...
+                    </div>
+                </div>
+                <div>
+                    <h3 class="text-lg font-medium mb-3">Recent Transactions</h3>
+                    <div id="history-container" class="overflow-x-auto max-h-60">
+                        <div class="loader"></div> Loading history...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notifications -->
+    <div id="notification" class="fixed top-4 right-4 bg-gray-800 text-white px-4 py-2 rounded shadow-lg transform transition-transform translate-x-full z-50"></div>
+
+    <!-- Load Leaflet JS library -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
+
+    <script>
+        let map = null;
+        let markers = [];
+        let donorMarker = null;
+        let donorCoordinates = null;
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            // Load trending needs and stats
+            fetchTrendingNeeds();
+            fetchSummaryStats();
+            
+            // Find Recipients Form
+            document.getElementById('find-form').addEventListener('submit', function(e) {
+                e.preventDefault();
+                const donationType = document.getElementById('donation-type').value;
+                const donorLocation = document.getElementById('donor-location').value;
+                fetchRecipients(donationType, donorLocation);
+            });
+
+            // Donation Form
+            document.getElementById('donation-form').addEventListener('submit', function(e) {
+                e.preventDefault();
+                const recipientId = document.getElementById('recipient-id').value;
+                const donorName = document.getElementById('donor-name').value;
+                const donorContact = document.getElementById('donor-contact').value;
+                const donorLocation = document.getElementById('donor-location').value;
+                const donationType = document.getElementById('donation-type').value;
+                const pickupLocation = document.getElementById('pickup-location').value;
+                
+                submitDonation(donorName, donorContact, donationType, donorLocation, pickupLocation, recipientId);
+            });
+
+            // Request Form
+            document.getElementById('request-form').addEventListener('submit', function(e) {
+                e.preventDefault();
+                const name = document.getElementById('recipient-name').value;
+                const location = document.getElementById('recipient-location').value;
+                const donationType = document.getElementById('need-type').value;
+                const contact = document.getElementById('recipient-contact').value;
+                
+                submitRequest(name, location, donationType, contact);
+            });
+        });
+
+        // Modal handling
+        function showModal(modalId) {
+            document.getElementById(modalId).style.display = 'block';
+            document.body.style.overflow = 'hidden';
+            
+            if (modalId === 'modal-history') {
+                fetchHistory();
+            }
+            
+            if (modalId === 'modal-donate') {
+                showDonateStep(1);
+            }
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+            document.body.style.overflow = 'auto';
+            
+            // Reset forms when closing
+            if (modalId === 'modal-donate') {
+                document.getElementById('find-form').reset();
+                document.getElementById('donation-form').reset();
+            } else if (modalId === 'modal-request') {
+                document.getElementById('request-form').reset();
+            }
+        }
+        
+        // Donation flow steps
+        function showDonateStep(step) {
+            // Hide all steps
+            document.querySelectorAll('.modal-step').forEach(el => {
+                el.classList.add('hidden');
+            });
+            
+            // Show requested step
+            document.getElementById(`donate-step-${step}`).classList.remove('hidden');
+        }
+
+        // Initialize the map
+        function initMap(lat, lng) {
+            // If map already exists, remove it
+            if (map !== null) {
+                map.remove();
+                map = null;
+                markers = [];
+                donorMarker = null;
+            }
+            
+            // Create new map
+            map = L.map('map-container').setView([lat, lng], 12);
+            
+            // Add tile layer (OpenStreetMap)
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+            
+            // Add donor marker with enhanced popup
+            donorMarker = L.marker([lat, lng], {
+                icon: L.divIcon({
+                    className: 'donor-marker',
+                    html: `<div style="background-color: #3b82f6; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white;"></div>`,
+                    iconSize: [15, 15],
+                    iconAnchor: [7, 7]
+                })
+            }).addTo(map);
+            
+            // Enhanced donor popup
+            const donorPopup = `
+                <div class="marker-popup">
+                    <h3>Donor</h3>
+                    <div>${document.getElementById('donation-type').value}</div>
+                    <div class="text-xs text-blue-600 mt-1">You are here</div>
+                </div>`;
+            donorMarker.bindPopup(donorPopup, {autoClose: false}); // Prevent popup from auto-closing
+            donorCoordinates = [lat, lng];
+        }
+        
+        // Add recipient markers to the map
+        function addRecipientMarkers(recipients) {
+            // Clear existing markers
+            markers.forEach(marker => map.removeLayer(marker));
+            markers = [];
+            
+            // Calculate popup offsets based on marker positions
+            const positions = new Map(); // Store marker positions for offset calculation
+            
+            recipients.forEach((recipient, index) => {
+                const urgencyColor = getUrgencyColor(recipient.urgency);
+                
+                // Create position key for clustering
+                const posKey = `${recipient.latitude.toFixed(4)},${recipient.longitude.toFixed(4)}`;
+                const overlapping = positions.has(posKey) ? positions.get(posKey) : 0;
+                positions.set(posKey, overlapping + 1);
+                
+                // Create custom marker
+                const marker = L.marker([recipient.latitude, recipient.longitude], {
+                    icon: L.divIcon({
+                        className: 'recipient-marker',
+                        html: `<div style="background-color: ${urgencyColor}; width: 10px; height: 10px; border-radius: 50%; border: 2px solid white;"></div>`,
+                        iconSize: [15, 15],
+                        iconAnchor: [7, 7]
+                    })
+                }).addTo(map);
+                
+                // Calculate offset for this popup
+                const offset = L.point(overlapping * 20, -overlapping * 20);
+                
+                // Create popup content
+                const popupContent = `
+                    <div class="marker-popup">
+                        <h3>${recipient.name}</h3>
+                        <div>${recipient.donation_type}</div>
+                        <div>${recipient.distance.toFixed(1)} km</div>
+                        <div class="mb-1">
+                            <strong>Contact:</strong> ${recipient.contact}
+                        </div>
+                        <div class="mb-1">
+                            <strong>Location:</strong> ${recipient.location}
+                        </div>
+                        <span class="urgency-badge" style="background-color: ${urgencyColor}">
+                            ${recipient.urgency.toFixed(1)}/5
+                        </span>
+                        <div class="text-xs mt-1">ML Confidence: ${(recipient.confidence * 100).toFixed(0)}%</div>
+                        <button 
+                            onclick="selectRecipient(${recipient.id})" 
+                            class="mt-2 bg-green-600 text-white px-2 py-1 text-xs rounded hover:bg-green-700 w-full"
+                        >
+                            Select
+                        </button>
+                    </div>
+                `;
+                
+                // Bind popup with calculated offset and increased minWidth
+                marker.bindPopup(popupContent, {
+                    autoClose: false,
+                    offset: offset,
+                    minWidth: 150,
+                    maxHeight: 300,
+                    autoPanPadding: [50, 50]
+                });
+                markers.push(marker);
+                
+                // Add click event to list items
+                document.querySelector(`[data-recipient-id="${recipient.id}"]`)?.addEventListener('click', function() {
+                    map.setView([recipient.latitude, recipient.longitude], 12);
+                });
+            });
+            
+            // Fit map to include all markers
+            if (markers.length > 0) {
+                const group = new L.featureGroup([donorMarker, ...markers]);
+                map.fitBounds(group.getBounds().pad(0.1));
+                
+                // Open all popups with donor popup last to be on top
+                markers.forEach(marker => marker.openPopup());
+                donorMarker.openPopup();
+            }
+        }
+
+        // Get color based on urgency level
+        function getUrgencyColor(urgency) {
+            if (urgency >= 4) return '#ef4444'; // Red for high urgency
+            if (urgency >= 3) return '#f97316'; // Orange for medium-high
+            if (urgency >= 2) return '#eab308'; // Yellow for medium
+            return '#22c55e'; // Green for low urgency
+        }
+
+        // Fetch trending needs
+        function fetchTrendingNeeds() {
+            fetch('/api/trending')
+                .then(response => response.json())
+                .then(data => {
+                    const container = document.getElementById('trending-container');
+                    container.innerHTML = '';
+                    
+                    if (data.trends && data.trends.length > 0) {
+                        data.trends.forEach(trend => {
+                            container.innerHTML += `
+                                <div class="w-full md:w-1/3 p-3">
+                                    <div class="border rounded-lg shadow p-5 h-full bg-blue-50 hover:bg-blue-100 transition-colors">
+                                        <div class="font-semibold text-lg mb-2">${trend.type}</div>
+                                        <div>${trend.message}</div>
+                                    </div>
+                                </div>
+                            `;
+                        });
+                    } else {
+                        container.innerHTML = '<p class="text-center w-full">No trending needs available.</p>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching trending data:', error);
+                    document.getElementById('trending-container').innerHTML = 
+                        '<p class="text-red-500 text-center w-full">Error loading trending needs. Please try again later.</p>';
+                });
+        }
+        
+        // Fetch summary stats for homepage
+        function fetchSummaryStats() {
+            fetch('/api/summary_stats')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('total-donations').textContent = data.total_donations.toLocaleString();
+                    document.getElementById('unique-donors').textContent = data.unique_donors.toLocaleString();
+                    document.getElementById('communities-served').textContent = data.communities_served.toLocaleString();
+                })
+                .catch(error => {
+                    console.error('Error fetching summary stats:', error);
+                });
+        }
+
+        // Fetch recipients
+        function fetchRecipients(donationType, location) {
+            const recipientsList = document.getElementById('recipients-list');
+            recipientsList.innerHTML = '<div class="loader"></div> Searching for matching recipients...';
+            showDonateStep(2);
+            
+            fetch(`/api/recipients/?type=${encodeURIComponent(donationType)}&location=${encodeURIComponent(location)}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    recipientsList.innerHTML = '';
+                    
+                    if (data.recipients && data.recipients.length > 0) {
+                        // Initialize map with donor location
+                        if (data.donor_coordinates) {
+                            initMap(data.donor_coordinates.latitude, data.donor_coordinates.longitude);
+                        }
+                        
+                        data.recipients.forEach(recipient => {
+                            const urgencyColor = getUrgencyColor(recipient.urgency);
+                            
+                            recipientsList.innerHTML += `
+                                <div class="border rounded p-4 hover:bg-blue-50 cursor-pointer" data-recipient-id="${recipient.id}">
+                                    <div class="font-semibold">${recipient.name}</div>
+                                    <div class="text-sm text-gray-600">
+                                        <div>Location: ${recipient.location} (${recipient.distance.toFixed(1)} km away)</div>
+                                        <div>
+                                            Need: ${recipient.donation_type} 
+                                            <span class="urgency-badge" style="background-color: ${urgencyColor}">
+                                                Urgency: ${recipient.urgency.toFixed(1)}/5
+                                                <span class="text-xs ml-1">(${(recipient.confidence * 100).toFixed(0)}% conf)</span>
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <button class="mt-2 bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
+                                        onclick="event.stopPropagation(); selectRecipient(${recipient.id});">Select</button>
+                                </div>
+                            `;
+                        });
+                        
+                        // Add recipient markers to map
+                        addRecipientMarkers(data.recipients);
+                        
+                        // Add click event to list items
+                        document.querySelectorAll('[data-recipient-id]').forEach(item => {
+                            item.addEventListener('click', function() {
+                                const id = this.getAttribute('data-recipient-id');
+                                const recipient = data.recipients.find(r => r.id == id);
+                                if (recipient) {
+                                    map.setView([recipient.latitude, recipient.longitude], 13);
+                                    markers.forEach(marker => {
+                                        if (marker._latlng.lat === recipient.latitude && 
+                                            marker._latlng.lng === recipient.longitude) {
+                                            marker.openPopup();
+                                        }
+                                    });
+                                }
+                            });
+                        });
+                    } else {
+                        recipientsList.innerHTML = '<p>No matching recipients found for this donation type or location.</p>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching recipients:', error);
+                    recipientsList.innerHTML = '<p class="text-red-500">Error finding recipients. Please try again later.</p>';
+                });
+        }
+
+        // Select a recipient
+        function selectRecipient(id) {
+            document.getElementById('recipient-id').value = id;
+            showDonateStep(3);
+        }
+
+        // Submit donation
+        function submitDonation(donorName, donorContact, donationType, donorLocation, pickupLocation, recipientId) {
+            const payload = {
+                donor_name: donorName,
+                donor_contact: donorContact,
+                donation_type: donationType,
+                donor_location: donorLocation,
+                pickup_location: pickupLocation,
+                recipient_id: recipientId
+            };
+            
+            fetch('/api/donate/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Send email notification
+                    emailjs.send(emailjsConfig.serviceId, emailjsConfig.templateId, {
+                        to_email: data.recipient_contact,
+                        to_name: data.recipient_name,
+                        from_name: donorName,
+                        donation_type: donationType,
+                        pickup_location: pickupLocation,
+                        donor_contact: donorContact,
+                        donor_location: donorLocation,
+                        message: `A new donation has been arranged for you. Please contact the donor to arrange pickup.`
+                    }).then(
+                        function(response) {
+                            showNotification("Donation submitted and recipient notified!", 'success');
+                        },
+                        function(error) {
+                            console.error("Email notification failed:", error);
+                            showNotification("Donation submitted but recipient notification failed", 'warning');
+                        }
+                    );
+
+                    document.getElementById('donation-form').reset();
+                    document.getElementById('find-form').reset();
+                    closeModal('modal-donate');
+                    fetchTrendingNeeds();
+                    fetchSummaryStats();
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error submitting donation:', error);
+                showNotification('Error processing donation. Please try again.', 'error');
+            });
+        }
+
+        // Submit request
+        function submitRequest(name, location, donationType, contact) {
+            const payload = {
+                name: name,
+                location: location,
+                donation_type: donationType,
+                contact: contact
+            };
+            
+            fetch('/api/add_recipient/', {  // Added trailing slash
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification(`Request added successfully with urgency level: ${data.urgency.toFixed(1)}/5`, 'success');
+                    document.getElementById('request-form').reset();
+                    closeModal('modal-request');
+                    fetchTrendingNeeds();
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error submitting request:', error);
+                showNotification('Error processing request. Please try again.', 'error');
+            });
+        }
+
+        // Fetch donation history
+        function fetchHistory() {
+            const statsContainer = document.getElementById('stats-container');
+            const historyContainer = document.getElementById('history-container');
+            
+            statsContainer.innerHTML = '<div class="loader"></div> Loading statistics...';
+            historyContainer.innerHTML = '<div class="loader"></div> Loading history...';
+            
+            fetch('/api/history')
+                .then(response => response.json())
+                .then(data => {
+                    // Render stats
+                    statsContainer.innerHTML = '';
+                    if (data.type_stats && data.type_stats.length > 0) {
+                        data.type_stats.forEach(stat => {
+                            statsContainer.innerHTML += `
+                                <div class="border rounded p-4">
+                                    <div class="font-semibold">${stat.donation_type}</div>
+                                    <div>Total: ${stat.count} donations</div>
+                                    <div>Avg. Urgency: ${stat.avg_urgency.toFixed(1)}/5</div>
+                                </div>
+                            `;
+                        });
+                    } else {
+                        statsContainer.innerHTML = '<p>No donation statistics available.</p>';
+                    }
+                    
+                    // Render history
+                    historyContainer.innerHTML = '';
+                    if (data.transactions && data.transactions.length > 0) {
+                        historyContainer.innerHTML = `
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead>
+                                    <tr>
+                                        <th class="px-4 py-2 text-left">Date</th>
+                                        <th class="px-4 py-2 text-left">Type</th>
+                                        <th class="px-4 py-2 text-left">Donor</th>
+                                        <th class="px-4 py-2 text-left">Recipient</th>
+                                        <th class="px-4 py-2 text-left">Location</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                        `;
+                        
+                        data.transactions.forEach(transaction => {
+                            const date = new Date(transaction.date).toLocaleDateString();
+                            historyContainer.innerHTML += `
+                                <tr class="hover:bg-gray-50">
+                                    <td class="px-4 py-2">${date}</td>
+                                    <td class="px-4 py-2">${transaction.donation_type}</td>
+                                    <td class="px-4 py-2">${transaction.donor_name}</td>
+                                    <td class="px-4 py-2">${transaction.recipient_name}</td>
+                                    <td class="px-4 py-2">${transaction.location}</td>
+                                </tr>
+                            `;
+                        });
+                        
+                        historyContainer.innerHTML += `
+                                </tbody>
+                            </table>
+                        `;
+                    } else {
+                        historyContainer.innerHTML = '<p>No donation history available.</p>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching history:', error);
+                    statsContainer.innerHTML = 
+                        '<p class="text-red-500">Error loading statistics. Please try again later.</p>';
+                    historyContainer.innerHTML = 
+                        '<p class="text-red-500">Error loading history. Please try again later.</p>';
+                });
+        }
+
+        // Show notification
+        function showNotification(message, type) {
+            const notification = document.getElementById('notification');
+            // Extract confidence if present
+            const confidenceMatch = message.match(/confidence: (\d+%)/);
+            if (confidenceMatch) {
+                const confidence = confidenceMatch[1];
+                message = message.replace(/\(confidence: \d+%\)/, '');
+                notification.innerHTML = `${message}<br><span class="text-sm">ML Confidence: ${confidence}</span>`;
+            } else {
+                notification.textContent = message;
+            }
+            notification.className = `fixed top-4 right-4 px-4 py-2 rounded shadow-lg transition-all duration-300 ${
+                type === 'success' ? 'bg-green-600' : 'bg-red-600'
+            } text-white z-50`;
+            
+            // Show notification
+            setTimeout(() => {
+                notification.style.transform = 'translateX(0)';
+            }, 100);
+            
+            // Hide after 5 seconds
+            setTimeout(() => {
+                notification.style.transform = 'translateX(100%)';
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
