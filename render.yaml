@@ -22,10 +22,14 @@ services:
       - key: EMAIL_HOST_PASSWORD
         value: jzio inzq lhqg azeg
       - key: DATABASE_URL
-        value: postgresql://aidhub_user:5jPXPvDe3WWVPHgGSlRyhmXhlj1YGpRR@dpg-cvnnlqp5pdvs73bamgrg-a.oregon-postgres.render.com/aidhub
+        sync: false
         fromDatabase:
           name: aidhub_db
           property: connectionString
+      - key: DATABASE_ENGINE  # Add explicit database engine
+        value: django.db.backends.postgresql
+      - key: SSL_MODE  # Add SSL configuration
+        value: require
       - key: PORT  # Add PORT explicitly
         value: 8000
       - key: MALLOC_ARENA_MAX  # Add memory optimization

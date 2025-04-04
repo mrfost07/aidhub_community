@@ -64,6 +64,14 @@ DATABASES = {
     )
 }
 
+if DATABASES['default']:
+    DATABASES['default'].update({
+        'ENGINE': 'django.db.backends.postgresql',
+        'OPTIONS': {
+            'sslmode': 'require',
+        }
+    })
+
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
