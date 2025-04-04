@@ -12,7 +12,7 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'default_secret_key')
 
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'aidhub-community.onrender.com,.onrender.com,localhost,127.0.0.1').split(',')
 
 
 INSTALLED_APPS = [
@@ -119,6 +119,13 @@ LOGGING = {
             'propagate': False,
         },
     },
+}
+
+# Add Gunicorn settings
+LOGGING['loggers']['gunicorn'] = {
+    'handlers': ['console'],
+    'level': 'INFO',
+    'propagate': False,
 }
 
 # CSRF settings

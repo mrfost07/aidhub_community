@@ -10,11 +10,13 @@ services:
       - key: DEBUG
         value: False
       - key: ALLOWED_HOSTS
-        value: .onrender.com,localhost,127.0.0.1
+        value: aidhub-community.onrender.com,.onrender.com,localhost,127.0.0.1
       - key: SECRET_KEY
         generateValue: true
       - key: WEB_CONCURRENCY
-        value: 4
+        value: 2  # Reduced from 4 to save memory
+      - key: PYTHON_HASH_SEED  # Add to reduce memory usage
+        value: random
       - key: EMAIL_HOST_USER
         value: emailsender880@gmail.com
       - key: EMAIL_HOST_PASSWORD
@@ -23,6 +25,12 @@ services:
         fromDatabase:
           name: aidhub_db
           property: connectionString
+    
+    # Add memory configuration
+    plan: free  # Specify the free plan
+    resources:
+      memory: 512M  # Request 512MB memory
+      cpu: 0.5      # Request 0.5 CPU
 
     autoDeploy: true
     buildFilter:

@@ -22,7 +22,6 @@ var/
 *.egg
 
 # Virtual environment directories
-env/
 venv/
 ENV/
 VENV/
