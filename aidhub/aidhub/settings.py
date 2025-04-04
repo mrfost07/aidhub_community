@@ -10,9 +10,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.getenv('SECRET_KEY', 'default_secret_key')
 
-DEBUG = False  # Set to False for production
+DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = ['*']  # Allow all hosts
+ALLOWED_HOSTS = ['*'] if DEBUG else [
+    '.up.railway.app',
+    'localhost',
+    '127.0.0.1'
+]
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -26,10 +30,10 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # Add this line
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',  # Enable CSRF protection
+    # 'django.middleware.csrf.CsrfViewMiddleware',  # Commented for development
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -60,6 +64,7 @@ DATABASES = {
         default='sqlite:///' + str(BASE_DIR / 'db.sqlite3'),
         conn_max_age=600,
         conn_health_checks=True,
+        ssl_require=not DEBUG,
     )
 }
 
@@ -140,8 +145,7 @@ LOGGING['loggers']['gunicorn'] = {
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:8000',
     'http://127.0.0.1:8000',
-    'http://*',  # Allow HTTP
-    'https://*'  # Allow HTTPS
+    'https://*.up.railway.app',
 ]
 
 CSRF_COOKIE_SECURE = False
@@ -182,28 +186,3 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 5242880
 
 # Add this setting to handle trailing slashes
 APPEND_SLASH = False
-
-# Security settings for external access
-SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-SECURE_SSL_REDIRECT = False  # Set to True if using HTTPS
-SESSION_COOKIE_SECURE = False  # Set to True if using HTTPS
-CSRF_COOKIE_SECURE = False  # Set to True if using HTTPS
-
-# Update allowed hosts - add your domain/IP
-ALLOWED_HOSTS = ['*']  # Be more restrictive in production
-
-# Update CSRF settings for external access
-CSRF_TRUSTED_ORIGINS = [
-    'http://*',  # Allow all HTTP (not recommended for production)
-    'https://*', # Allow all HTTPS (not recommended for production) 
-]
-
-# Rate limiting settings
-MIDDLEWARE += [
-    'django.middleware.common.CommonMiddleware',
-]
-
-# Security middleware settings
-MIDDLEWARE += [
-    'django.middleware.security.SecurityMiddleware',
-]
